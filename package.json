@@ -7,7 +7,7 @@
     "cc-usage-statusline": "bin/cc-usage-statusline.js"
   },
   "scripts": {
-    "test": "node --test tests/"
+    "test": "node --test tests/*.test.js"
   },
   "keywords": [
     "claude",
