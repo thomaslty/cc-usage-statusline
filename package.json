@@ -1,0 +1,27 @@
+{
+  "name": "cc-usage-statusline",
+  "version": "1.0.0",
+  "description": "Claude Code status line showing usage limits with color-coded progress bars",
+  "main": "src/statusline.js",
+  "bin": {
+    "cc-usage-statusline": "bin/cc-usage-statusline.js"
+  },
+  "scripts": {
+    "test": "node --test tests/"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "statusline",
+    "usage",
+    "anthropic"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "bin/",
+    "src/"
+  ]
+}
