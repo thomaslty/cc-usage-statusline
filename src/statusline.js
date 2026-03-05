@@ -78,10 +78,20 @@ async function main() {
   let usageParts = '';
   const token = getAccessToken();
   if (token) {
-    const usage = await getUsage(token);
-    if (usage) {
-      const nowEpoch = Math.floor(Date.now() / 1000);
+    const usageResult = await getUsage(token);
+    const usage = usageResult?.data;
+    const rateLimitedUntil = usageResult?.rateLimitedUntil || 0;
+    const nowEpoch = Math.floor(Date.now() / 1000);
 
+    // Format rate-limit countdown suffix
+    let rlSuffix = '';
+    if (rateLimitedUntil > nowEpoch) {
+      const remaining = rateLimitedUntil - nowEpoch;
+      const label = remaining >= 60 ? `${Math.ceil(remaining / 60)}m` : `${remaining}s`;
+      rlSuffix = `${DIM} (429:${label})${RESET}`;
+    }
+
+    if (usage) {
       // 5-hour window
       const u5 = Math.floor(usage?.five_hour?.utilization ?? -1);
       if (u5 >= 0) {
@@ -95,7 +105,7 @@ async function main() {
         }
         const u5Color = colorForPct(u5);
         const u5Bar = makeBar(u5, target5h, 10);
-        usageParts = `${u5Color}5hr${resetLabel5h} ${u5Bar} ${u5}%${RESET}`;
+        usageParts = `${u5Color}5hr${resetLabel5h} ${u5Bar} ${u5}%${RESET}${rlSuffix}`;
       }
 
       // 7-day window
@@ -112,8 +122,13 @@ async function main() {
         const u7Color = colorForPct(u7);
         const u7Bar = makeBar(u7, target7d, 10);
         if (usageParts) usageParts += `${DIM} \u2502 ${RESET}`;
-        usageParts += `${u7Color}wk${resetLabel7d} ${u7Bar} ${u7}%${RESET}`;
+        usageParts += `${u7Color}wk${resetLabel7d} ${u7Bar} ${u7}%${RESET}${rlSuffix}`;
       }
+    } else if (rateLimitedUntil > nowEpoch) {
+      // No cached data at all, just show rate-limit message
+      const remaining = rateLimitedUntil - nowEpoch;
+      const label = remaining >= 60 ? `${Math.ceil(remaining / 60)}m` : `${remaining}s`;
+      usageParts = `${DIM}\u23f3 429 rate limited, retry in ${label}${RESET}`;
     }
   }
 

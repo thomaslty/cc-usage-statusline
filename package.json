@@ -1,7 +1,12 @@
 {
   "name": "cc-usage-statusline",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Claude Code status line showing usage limits with color-coded progress bars",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thomaslty/cc-usage-statusline.git"
+  },
+  "homepage": "https://github.com/thomaslty/cc-usage-statusline",
   "main": "src/statusline.js",
   "bin": {
     "cc-usage-statusline": "bin/cc-usage-statusline.js"

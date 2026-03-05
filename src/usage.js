@@ -44,7 +44,7 @@ function formatResetLabel(resetEpochSecs, includeDay = false) {
 /**
  * Fetch usage data from Anthropic API.
  * @param {string} token - OAuth access token
- * @returns {Promise<object|null>} Usage data or null
+ * @returns {Promise<{data: object|null, rateLimited: boolean, retryAfter: number}>}
  */
 function fetchUsage(token) {
   return new Promise((resolve) => {
@@ -60,23 +60,28 @@ function fetchUsage(token) {
         timeout: 3000,
       },
       (res) => {
+        if (res.statusCode === 429) {
+          const retryAfter = parseInt(res.headers['retry-after'], 10) || 60;
+          res.resume();
+          return resolve({ data: null, rateLimited: true, retryAfter });
+        }
         let body = '';
         res.on('data', (chunk) => (body += chunk));
         res.on('end', () => {
           try {
             const data = JSON.parse(body);
-            if (data.error) return resolve(null);
-            resolve(data);
+            if (data.error) return resolve({ data: null, rateLimited: false, retryAfter: 0 });
+            resolve({ data, rateLimited: false, retryAfter: 0 });
           } catch {
-            resolve(null);
+            resolve({ data: null, rateLimited: false, retryAfter: 0 });
           }
         });
       }
     );
-    req.on('error', () => resolve(null));
+    req.on('error', () => resolve({ data: null, rateLimited: false, retryAfter: 0 }));
     req.on('timeout', () => {
       req.destroy();
-      resolve(null);
+      resolve({ data: null, rateLimited: false, retryAfter: 0 });
     });
     req.end();
   });
@@ -84,30 +89,51 @@ function fetchUsage(token) {
 
 /**
  * Get usage data, using cache if fresh enough.
+ * Returns { data, rateLimitedUntil } where rateLimitedUntil is epoch secs (0 if not limited).
  * @param {string} token - OAuth access token
- * @returns {Promise<object|null>}
+ * @returns {Promise<{data: object|null, rateLimitedUntil: number}>}
  */
 async function getUsage(token) {
-  // Check cache freshness
+  let cache = null;
   try {
-    const stat = fs.statSync(CACHE_PATH);
-    const ageSecs = (Date.now() - stat.mtimeMs) / 1000;
-    if (ageSecs < CACHE_MAX_AGE_SECS) {
-      return JSON.parse(fs.readFileSync(CACHE_PATH, 'utf8'));
-    }
+    cache = JSON.parse(fs.readFileSync(CACHE_PATH, 'utf8'));
   } catch {
-    // No cache or can't read — fetch fresh
+    // No cache or can't read
   }
 
-  const data = await fetchUsage(token);
-  if (data) {
-    try {
-      fs.writeFileSync(CACHE_PATH, JSON.stringify(data));
-    } catch {
-      // Cache write failure is non-fatal
-    }
+  const nowSecs = Math.floor(Date.now() / 1000);
+
+  // If cache is fresh, return it
+  if (cache && cache.fetchedAt && (nowSecs - cache.fetchedAt) < CACHE_MAX_AGE_SECS) {
+    return { data: cache.data, rateLimitedUntil: cache.rateLimitedUntil || 0 };
   }
-  return data;
+
+  // If still within rate-limit backoff, skip fetch and return stale data
+  if (cache && cache.rateLimitedUntil && nowSecs < cache.rateLimitedUntil) {
+    return { data: cache.data || null, rateLimitedUntil: cache.rateLimitedUntil };
+  }
+
+  const result = await fetchUsage(token);
+
+  if (result.rateLimited) {
+    const rateLimitedUntil = nowSecs + result.retryAfter;
+    const newCache = {
+      data: cache?.data || null,
+      fetchedAt: cache?.fetchedAt || 0,
+      rateLimitedUntil,
+    };
+    try { fs.writeFileSync(CACHE_PATH, JSON.stringify(newCache)); } catch {}
+    return { data: newCache.data, rateLimitedUntil };
+  }
+
+  if (result.data) {
+    const newCache = { data: result.data, fetchedAt: nowSecs, rateLimitedUntil: 0 };
+    try { fs.writeFileSync(CACHE_PATH, JSON.stringify(newCache)); } catch {}
+    return { data: result.data, rateLimitedUntil: 0 };
+  }
+
+  // Other failure — return stale cache if available
+  return { data: cache?.data || null, rateLimitedUntil: 0 };
 }
 
 module.exports = { getUsage, fetchUsage, computePacingTarget, formatResetLabel };

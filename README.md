@@ -1,5 +1,8 @@
 # cc-usage-statusline
 
+[![GitHub](https://img.shields.io/github/stars/thomaslty/cc-usage-statusline?style=social)](https://github.com/thomaslty/cc-usage-statusline)
+[![npm](https://img.shields.io/npm/v/cc-usage-statusline)](https://www.npmjs.com/package/cc-usage-statusline)
+
 Claude Code status line showing real-time usage metrics with color-coded progress bars.
 
 Displays: directory, git branch, session cost, model, context window %, 5-hour rolling limit %, and 7-day rolling limit % — all with pacing targets so you know if you're ahead or behind your usage budget.
